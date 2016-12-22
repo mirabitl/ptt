@@ -1,0 +1,263 @@
+#include "PostOffice.hh"
+#include <cstdlib>
+#include <iostream>
+#include <ctime>
+
+
+
+PostOffice::PostOffice(std::string name,uint32_t port) : _running(false),_base("/dev/shm")
+{
+  _fsm=new fsmweb(name);
+
+  // Register state
+  _fsm->addState("CREATED");
+  _fsm->addState("CONFIGURED");
+  _fsm->addState("RUNNING");
+  _fsm->addTransition("CONFIGURE","CREATED","CONFIGURED",boost::bind(&PostOffice::configure, this,_1));
+  _fsm->addTransition("CONFIGURE","CONFIGURED","CONFIGURED",boost::bind(&PostOffice::configure, this,_1));
+  _fsm->addTransition("START","CONFIGURED","RUNNING",boost::bind(&PostOffice::start, this,_1));
+  _fsm->addTransition("STOP","RUNNING","CONFIGURED",boost::bind(&PostOffice::stop, this,_1));
+  _fsm->addTransition("HALT","RUNNING","CREATED",boost::bind(&PostOffice::halt, this,_1));
+  _fsm->addTransition("HALT","CONFIGURED","CREATED",boost::bind(&PostOffice::halt, this,_1));
+
+  _fsm->addCommand("DIRECTORY",boost::bind(&PostOffice::directory, this,_1,_2));
+  _fsm->addCommand("LISTMBOX",boost::bind(&PostOffice::listmbox, this,_1,_2));
+  _fsm->addCommand("REGISTERMBOX",boost::bind(&PostOffice::registermbox, this,_1,_2));
+
+  //Start server
+  _fsm->start(port);
+}
+
+void PostOffice::configure(wemove::fsmmessage* m)
+{
+  std::cout<<"Received "<<m->command()<<std::endl;
+  std::cout<<"Received "<<m->value()<<std::endl;
+  _postName=jc["postName"].asSring();
+  _postPort=jc["postPort"].asUInt();
+  for (std::map<uint64_t,wemove::tgv*>::iterator it= _tgvMap.begin();it!=_tgvMap.end();it++) delete it->second;
+  _tgvMap.clear();
+  Json::Value jc=m->content();
+  std::cout<<jc<<std::endl;
+
+  const Json::Value& jhosts = jc["hosts"];
+  Json::Value array_keys;
+  for (Json::ValueConstIterator it = jhosts.begin(); it != jhosts.end(); ++it)
+    {
+
+      std::string hn=(*it).asString();
+      // Create a tgv to this hosts
+      t= new tgv((*it)["name"].asString(),(*it)["port"].asUInt());
+      _tgvMap.insert(std::pair<uint64_t,wemove::tgv*>(socketId(),t));
+    }
+ 
+  
+}
+
+void PostOffice::start(wemove::fsmmessage* m)
+{
+    std::cout<<"Received "<<m->command()<<std::endl;
+
+    _running=true;
+    Json::Value jc=m->content();
+    std::cout<<jc<<std::endl;
+    if (_group!=NULL) delete _group;
+    _group=new NL::SocketGroup();
+    if (_msh!=NULL) delete _msh;
+    _msh =new wemove::PostMessageHandler(_base);
+    _onRead= new wemove::OnRead(_msh);
+    _onClientDisconnect= new wemove::OnClientDisconnect();
+    _onDisconnect= new wemove::OnDisconnect(_msh);
+    _onAccept=new wemove::OnAccept(_msh);
+    _group->setCmdOnRead(_onRead);
+    _group->setCmdOnAccept(_onAccept);
+    _group->setCmdOnDisconnect(_onClientDisconnect);
+    if (_readSocket!=NULL) delete _readSocket;
+    
+    try {
+      _readSocket=new NL::Socket(_postName.c_str(),_postPort);
+      _group->add(_readSocket);
+    }
+    catch (NL::Exception e)
+    {
+      std::stringstream s;
+      s<<e.msg()<<" Cannot create socket "<<_postName<<":"<<_postPort;
+      std::cout<<s.str()<<std::endl;
+      Json::Value array;
+      array["ERROR"]=s.str();
+      
+      m->setAnswer(array);
+      return;
+    }
+    this->listen();
+
+    this->check();
+}
+
+void PostOffice::dolisten()
+{
+  
+  while(_running) {
+    
+    if(!_group->listen(2000))
+      std::cout << "\nNo msg recieved during the last 2 seconds";
+  }
+  
+  
+}
+void PostOffice::listen()
+{
+  g_read.create_thread(boost::bind(&PostOffice::dolisten, this));
+  
+}
+
+void PostOffice::check()
+{
+  g_post.create_thread(boost::bind(&PostOffice::docheck, this));
+  
+}
+void wemove::PostOffice::initFifo()
+{
+  stringstream name;
+  name<<_base<<"/PO/OUTPUT/yellowbox";
+  struct stat st;
+  if (stat(name.str().c_str(), &st) != 0)
+    mkfifo(name.str().c_str(), 0666);
+  _fd = open(name.str().c_str(), O_RDONLY| O_NONBLOCK);
+  if (_fd == -1) {
+    perror("open");
+    return;
+  }
+  FD_ZERO(&_fifoSet);
+  FD_SET(_fd, &_fifoSet);
+  
+}
+
+void wemove::PostOffice::docheck()
+{
+  int n;
+  uint64_t code;
+  while (_active)
+  {
+    n = select(_fd+1, &_fifoSet, NULL, NULL, NULL);
+    if (!n)
+      continue;
+    if (n == -1)
+    {
+      perror("select");
+      return;
+    }
+    if (FD_ISSET(_fd, &_fifoSet))
+    {
+      printf("Descriptor %d is ready.\n",_fd);
+      int32_t total_bytes = 0,bytes=0;
+      for (;;) {
+        // Read 8 bytes for code of bal
+        bytes = read(_fd, &code, 8);
+        std::cout<<errno<<bytes<<" are read "<<total_bytes<<std::endl;
+        if (bytes > 0)
+        {
+          total_bytes += (size_t)bytes;
+        }
+        else
+        {
+          if ((errno == EWOULDBLOCK || errno==0) && total_bytes>0)
+          {
+            /* Done reading */
+            printf("done reading (%lu bytes) %x \n", total_bytes,code);
+            this->_handler(code);
+            balMessage m((uint32_t) 0x100000);
+            stringstream name;
+            name<<_base<<"/PO/OUTPUT/DATA";
+            m.read(name,code);
+            std::string adr;
+            adr.assign(m.dest());
+            balAddress ba(adr);
+            if (_tgvMap.find(ba.socketId())!=_tgvMap.end())
+              _tgvMap[ba.socketId()]->send(&m);
+            break;
+          }
+          else
+          {
+            perror("read");
+            ::close(_fd);
+            this->initFifo();
+            break;
+          }
+        }
+      }
+    }
+  }
+  
+}
+
+
+
+
+void PostOffice::stop(wemove::fsmmessage* m)
+{
+  
+  
+    std::cout<<"Received "<<m->command()<<std::endl;
+  
+    // Stop running
+    _running=false;
+    ::sleep(1);
+    std::cout<<"joining"<<std::endl;
+   g_read.join_all();
+}
+void PostOffice::halt(wemove::fsmmessage* m)
+{
+  
+  
+    std::cout<<"Received "<<m->command()<<std::endl;
+    if (_running)
+      this->stop(m);
+    std::cout<<"Destroying"<<std::endl;
+   
+}
+void PostOffice::listmbox(Mongoose::Request &request, Mongoose::JsonResponse &response)
+{
+    std::cout<<"dowmnload"<<request.getUrl()<<" "<<request.getMethod()<<" "<<request.getData()<<std::endl;
+    
+    int count,i;  
+    struct direct **files;  
+    std::stringstream sc;
+    sc.str(std::string());
+    sc<<sourcedir<<"/closed/";
+    
+    count = scandir(sc.str().c_str(), &files, file_select_2, alphasort);      
+    /* If no files found, make a non-selectable menu item */  
+    if(count <= 0)    {return ;}
+    
+    std::stringstream sd;     
+    //printf("Number of files = %d\n",count);  
+    for (i=1; i<count+1; ++i)  
+    {
+      // file name
+      std::string fName;
+      fName.assign(files[i-1]->d_name);
+      res.push_back(fName);
+      
+      /* sc.str(std::string());
+       s d.str(*std::string());
+       sc<<sourcedir<<"/closed/"<<files[i-1]->d_name;
+       sd<<sourcedir<<"/"<<files[i-1]->d_name;
+       ::unlink(sc.str().c_str());
+       ::unlink(sd.str().c_str());
+       */
+      free(files[i-1]);
+    }
+    free(files);
+    
+    response["answer"]="download called";
+}
+
+void PostOffice::list(Mongoose::Request &request, Mongoose::JsonResponse &response)
+{
+    std::cout<<"list"<<request.getUrl()<<" "<<request.getMethod()<<" "<<request.getData()<<std::endl;
+    response["answer"]="list called";
+}
+
+
+
+

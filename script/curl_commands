@@ -1,0 +1,20 @@
+ curl -g http://lyosdhcal12:5555/LMDAQ/FSM?command=CONFIGURE\&content=\{\"postName\":\"lyosdhcal12\",\"\postPort\":6666,\"hosts\":\[\{\"name\":\"lyosdhcal9\",\"port\":6666},\{\"name\":\"lyosdhcal10\",\"port\":6666},\{\"name\":\"lyorpitemp1\",\"port\":6666}\]\}
+ curl -g http://lyosdhcal9:5555/LMDAQ/FSM?command=CONFIGURE\&content=\{\"postName\":\"lyosdhcal9\",\"\postPort\":6666,\"hosts\":\[\{\"name\":\"lyosdhcal12\",\"port\":6666},\{\"name\":\"lyosdhcal10\",\"port\":6666},\{\"name\":\"lyorpitemp1\",\"port\":6666}\]\}	
+ curl -g http://lyosdhcal10:5555/LMDAQ/FSM?command=CONFIGURE\&content=\{\"postName\":\"lyosdhcal10\",\"\postPort\":6666,\"hosts\":\[\{\"name\":\"lyosdhcal12\",\"port\":6666},\{\"name\":\"lyosdhcal9\",\"port\":6666},\{\"name\":\"lyorpitemp1\",\"port\":6666}\]\}
+  curl -g http://lyorpitemp1:5555/LMDAQ/FSM?command=CONFIGURE\&content=\{\"postName\":\"lyosdhcal10\",\"\postPort\":6666,\"hosts\":\[\{\"name\":\"lyosdhcal12\",\"port\":6666},\{\"name\":\"lyosdhcal9\",\"port\":6666},\{\"name\":\"lyosdhcal10\",\"port\":6666}\]\}
+
+ curl -g http://lyosdhcal9:5555/LMDAQ/FSM?command=START\&content=\{\"postName\":\"lyosdhcal12\",\"\postPort\":5555,\"hosts\":\[\{\"name\":\"lyosdhcal9\",\"port\":5555}\]\}
+ curl -g http://lyosdhcal10:5555/LMDAQ/FSM?command=START\&content=\{\"postName\":\"lyosdhcal12\",\"\postPort\":5555,\"hosts\":\[\{\"name\":\"lyosdhcal9\",\"port\":5555}\]\}
+  curl -g http://lyorpitemp1:5555/LMDAQ/FSM?command=START\&content=\{\"postName\":\"lyosdhcal12\",\"\postPort\":5555,\"hosts\":\[\{\"name\":\"lyosdhcal9\",\"port\":5555}\]\}
+
+ curl -g http://lyosdhcal12:5555/LMDAQ/FSM?command=START\&content=\{\"postName\":\"lyosdhcal12\",\"\postPort\":6666,\"hosts\":\[\{\"name\":\"lyosdhcal9\",\"port\":6666}\]\}
+ curl -g http://lyosdhcal9:46000/DUF/FSM?command=CONFIGURE\&content=\{\"name\":\"FEEDER\",\"\instance\":1,\"builder\":\{\"host\":\"lyosdhcal12\",\"port\":6666,\"name\":\"BUILDER\",\"number\":1\}}
+ curl -g http://lyosdhcal10:46000/DUF/FSM?command=CONFIGURE\&content=\{\"name\":\"FEEDER\",\"\instance\":2,\"builder\":\{\"host\":\"lyosdhcal12\",\"port\":6666,\"name\":\"BUILDER\",\"number\":1\}}
+  curl -g http://lyorpitemp1:46000/DUF/FSM?command=CONFIGURE\&content=\{\"name\":\"FEEDER\",\"\instance\":3,\"builder\":\{\"host\":\"lyosdhcal12\",\"port\":6666,\"name\":\"BUILDER\",\"number\":1\}}
+
+ #sleep 2
+ curl -g http://lyosdhcal12:45000/DUS/FSM?command=CONFIGURE\&content=\{\"name\":\"FEEDER\",\"\instance\":2,\"builder\":\{\"host\":\"lyosdhcal12\",\"port\":6666,\"name\":\"BUILDER\",\"number\":1\}}
+ 
+ curl -g http://lyosdhcal9:46000/DUF/FSM?command=START\&content=\{\}
+ curl -g http://lyosdhcal10:46000/DUF/FSM?command=START\&content=\{\}
+curl -g http://lyorpitemp1:46000/DUF/FSM?command=START\&content=\{\}
