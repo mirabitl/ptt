@@ -74,8 +74,15 @@ PostOffice::PostOffice(std::string name,uint32_t port) : _running(false),_base("
   _group->setCmdOnDisconnect(_onDisconnect);
   if (_readSocket!=NULL) delete _readSocket;
   std::cout<<"Create socket "<<std::endl;
+  uint32_t sport=6666;
+  char* wp=getenv("PTT_SOCKPORT");
+  if (wp!=NULL)
+  {
+    sport=atoi(wp);
+    std::cout<<" Socket on "<<wp<<std::endl;
+  }
   try {
-    _readSocket=new NL::Socket(6666);
+    _readSocket=new NL::Socket(sport);
     _group->add(_readSocket);
   }
   catch (NL::Exception e)
@@ -150,7 +157,7 @@ void PostOffice::dolisten()
 }
 void PostOffice::listen()
 {
-  std::cout<<"Listenning on 6666"<<std::endl;
+  std::cout<<"Listenning "<<std::endl;
   g_read.create_thread(boost::bind(&PostOffice::dolisten, this));
   
 }
