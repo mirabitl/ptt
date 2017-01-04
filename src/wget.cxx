@@ -87,8 +87,8 @@ string url_encode(const string &value) {
 
 std::string wget(std::string url)
 {
-  char RC[500000];  //À changer selon vos besoin
-  memset(RC,0,500000);
+  char RC[0X80000];  //À changer selon vos besoin
+  memset(RC,0,0X80000);
   CurlQuery((char*) url.c_str(),RC);
   std::stringstream s;
   s<<RC;

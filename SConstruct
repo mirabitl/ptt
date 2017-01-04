@@ -154,6 +154,7 @@ china=env.Program("bin/chinaD",source="test/TdcDaemon.cxx",LIBPATH=EXE_LIBPATH,L
 po=env.Program("bin/pod",source="test/PostDaemon.cxx",LIBPATH=EXE_LIBPATH,LIBS=EXE_LIBS)
 tb=env.Program("bin/tbd",source="test/testBuilder.cxx",LIBPATH=EXE_LIBPATH,LIBS=EXE_LIBS)
 tf=env.Program("bin/tfd",source="test/testFeeder.cxx",LIBPATH=EXE_LIBPATH,LIBS=EXE_LIBS)
+job=env.Program("bin/jobd",source="test/JobDaemon.cxx",LIBPATH=EXE_LIBPATH,LIBS=EXE_LIBS)
 
 #dumb=env.Program("bin/dummyB",source="test/dummyBuilder.cxx",LIBPATH=EXE_LIBPATH,LIBS=EXE_LIBS)
 #ljcb=env.Program("bin/ljc",source="test/ljc.cxx",LIBPATH=EXE_LIBPATH,LIBS=EXE_LIBS)	
